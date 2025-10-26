@@ -228,81 +228,85 @@ async function generateWeightSuggestionsForWorkout(workout: any, userContext: st
     }
 
     // 🚀 NEW: Use batch API to generate all weight suggestions in ONE call
-    console.log('🏋️ Generating weight suggestions for ALL exercises in batch...');
+    console.log('🎯 Exercises to generate weights for (batch):', allExercises);
+    console.log(`📤 Sending batch request for ${allExercises.length} exercises`);
     
     try {
-      const weightResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/suggest-weights-batch`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      // Import and call the batch API handler directly instead of making an HTTP request
+      const { POST: batchHandler } = await import('../suggest-weights-batch/route');
+      
+      // Create a mock request object
+      const mockRequest = {
+        json: async () => ({
           user_context: userContext,
           exercises: allExercises,
           user_id: userId
         })
-      });
+      } as NextRequest;
+      
+      const weightResponse = await batchHandler(mockRequest);
+      
+      // Parse the response (NextResponse)
+      const batchData = await weightResponse.json();
+      console.log('✅ Batch API response received');
+      console.log('📦 Response data:', JSON.stringify(batchData, null, 2));
 
-      if (weightResponse.ok) {
-        const batchData = await weightResponse.json();
-        console.log('📦 Batch API response:', batchData);
-        if (batchData.success && batchData.exercises && Array.isArray(batchData.exercises)) {
-          // Convert array response to object keyed by exercise name
-          batchData.exercises.forEach((exerciseData: any) => {
-            weightSuggestions[exerciseData.exercise_name] = {
-              exercise_name: exerciseData.exercise_name,
-              sets: exerciseData.sets,
-              reasoning: exerciseData.reasoning,
-              safety_notes: exerciseData.safety_notes,
-              success: true
-            };
-          });
-          console.log(`✅ Batch weight suggestions generated for ${batchData.exercises.length}/${allExercises.length} exercises`);
-          console.log('✅ Weight suggestion keys:', Object.keys(weightSuggestions));
-        } else {
-          console.warn('⚠️ Batch API returned invalid format, falling back to individual calls');
-          console.warn('⚠️ Batch response:', batchData);
-          throw new Error('Invalid batch response format');
-        }
+      if (weightResponse.status === 200 && batchData.success && batchData.exercises && Array.isArray(batchData.exercises)) {
+        console.log('✅ Batch API succeeded with status 200');
+        // Convert array response to object keyed by exercise name
+        batchData.exercises.forEach((exerciseData: any) => {
+          weightSuggestions[exerciseData.exercise_name] = {
+            exercise_name: exerciseData.exercise_name,
+            sets: exerciseData.sets,
+            reasoning: exerciseData.reasoning,
+            safety_notes: exerciseData.safety_notes,
+            success: true
+          };
+        });
+        console.log(`✅ Batch weight suggestions generated for ${batchData.exercises.length}/${allExercises.length} exercises`);
+        console.log('📋 Weight suggestion keys:', Object.keys(weightSuggestions));
+        console.log('📋 Sample suggestion:', Object.keys(weightSuggestions).length > 0 ? weightSuggestions[Object.keys(weightSuggestions)[0]] : 'none');
       } else {
-        const errorText = await weightResponse.text();
-        console.warn(`⚠️ Batch weight suggestion API failed with status ${weightResponse.status}`);
-        console.warn(`⚠️ Error response:`, errorText);
-        throw new Error(`Batch API failed with status ${weightResponse.status}`);
+        console.warn('⚠️ Batch API returned invalid format, falling back to individual calls');
+        console.warn('⚠️ Batch response status:', weightResponse.status);
+        console.warn('⚠️ Batch response data:', batchData);
+        throw new Error('Invalid batch response format');
       }
     } catch (batchError) {
       console.error('❌ Batch weight generation failed, falling back to individual calls:', batchError);
       
       // FALLBACK: Generate weight suggestions individually (old method)
+      console.log('🔄 Falling back to individual weight generation for each exercise...');
+      const { POST: individualHandler } = await import('../suggest-weights-ai/route');
+      
       for (const exercise of allExercises) {
         try {
           console.log(`🏋️ [Fallback] Generating weight suggestion for: ${exercise}`);
           
-          const weightResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/suggest-weights-ai`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
+          const mockRequest = {
+            json: async () => ({
               user_context: userContext,
               exercise_details: exercise,
               user_id: userId
             })
-          });
+          } as NextRequest;
+          
+          const weightResponse = await individualHandler(mockRequest);
+          const weightData = await weightResponse.json();
 
-          if (weightResponse.ok) {
-            const weightData = await weightResponse.json();
-            if (weightData.success && weightData.sets) {
-              weightSuggestions[exercise] = {
-                exercise_name: weightData.exercise_name,
-                sets: weightData.sets,
-                reasoning: weightData.reasoning,
-                safety_notes: weightData.safety_notes,
-                success: true
-              };
-              console.log(`✅ Weight suggestion generated for: ${exercise} with ${weightData.sets.length} sets`);
-            }
+          if (weightResponse.status === 200 && weightData.success && weightData.sets) {
+            weightSuggestions[exercise] = {
+              exercise_name: weightData.exercise_name,
+              sets: weightData.sets,
+              reasoning: weightData.reasoning,
+              safety_notes: weightData.safety_notes,
+              success: true
+            };
+            console.log(`✅ Weight suggestion generated for: ${exercise} with ${weightData.sets.length} sets`);
           }
+          
+          // Small delay to avoid rate limiting
+          await new Promise(resolve => setTimeout(resolve, 500));
         } catch (error) {
           console.error(`❌ Error generating weight suggestion for ${exercise}:`, error);
           weightSuggestions[exercise] = {
