@@ -380,6 +380,18 @@ export interface WorkoutAction {
 
 export interface WorkoutModification {
   type: 'add_exercise' | 'modify_exercise' | 'remove_exercise';
+  sectionId?: string;
+  exercise?: {
+    name: string;
+    category: string;
+    sets: Array<{ reps: number; weight: number }>;
+    muscleGroups: string[];
+  };
+  exerciseId?: string;
+  changes?: {
+    reps?: number;
+    weight?: number;
+  };
   targetExerciseId?: string;
   exerciseData?: any;
   reason?: string;
