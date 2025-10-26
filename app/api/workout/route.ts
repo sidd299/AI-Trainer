@@ -221,6 +221,7 @@ async function generateWeightSuggestionsForWorkout(workout: any, userContext: st
     }
 
     console.log(`📋 Found ${allExercises.length} exercises to generate weight suggestions for`);
+    console.log('📋 Exercise list:', allExercises);
 
     if (allExercises.length === 0) {
       return {};
@@ -244,6 +245,7 @@ async function generateWeightSuggestionsForWorkout(workout: any, userContext: st
 
       if (weightResponse.ok) {
         const batchData = await weightResponse.json();
+        console.log('📦 Batch API response:', batchData);
         if (batchData.success && batchData.exercises && Array.isArray(batchData.exercises)) {
           // Convert array response to object keyed by exercise name
           batchData.exercises.forEach((exerciseData: any) => {
@@ -256,12 +258,16 @@ async function generateWeightSuggestionsForWorkout(workout: any, userContext: st
             };
           });
           console.log(`✅ Batch weight suggestions generated for ${batchData.exercises.length}/${allExercises.length} exercises`);
+          console.log('✅ Weight suggestion keys:', Object.keys(weightSuggestions));
         } else {
           console.warn('⚠️ Batch API returned invalid format, falling back to individual calls');
+          console.warn('⚠️ Batch response:', batchData);
           throw new Error('Invalid batch response format');
         }
       } else {
-        console.warn(`⚠️ Batch weight suggestion API failed with status ${weightResponse.status}, falling back to individual calls`);
+        const errorText = await weightResponse.text();
+        console.warn(`⚠️ Batch weight suggestion API failed with status ${weightResponse.status}`);
+        console.warn(`⚠️ Error response:`, errorText);
         throw new Error(`Batch API failed with status ${weightResponse.status}`);
       }
     } catch (batchError) {
@@ -311,6 +317,8 @@ async function generateWeightSuggestionsForWorkout(workout: any, userContext: st
     }
 
     console.log(`✅ Final: Generated weight suggestions for ${Object.keys(weightSuggestions).length}/${allExercises.length} exercises`);
+    console.log('✅ Final weight suggestion keys:', Object.keys(weightSuggestions));
+    console.log('✅ Sample weight suggestion:', Object.keys(weightSuggestions).length > 0 ? weightSuggestions[Object.keys(weightSuggestions)[0]] : 'none');
     return weightSuggestions;
   } catch (error) {
     console.error('❌ Error in generateWeightSuggestionsForWorkout:', error);
