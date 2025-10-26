@@ -361,49 +361,26 @@ export default function Home() {
       localStorage.setItem('userId', userId);
       localStorage.setItem('onboardingSummary', data.summary);
       
-      // Parse the workout from the onboarding response directly
-      console.log('🚀 Parsing workout from onboarding response...');
+      // ❌ SKIP parsing - ALWAYS call the workout API to get weight suggestions
+      console.log('🚀 Calling workout API to generate plan with weight suggestions...');
       
-      let workoutData;
-      try {
-        // Try to parse the summary as JSON (it contains the workout)
-        const summaryText = data.summary;
-        console.log('🔍 Summary text:', summaryText);
-        
-        // Extract JSON from the summary (remove markdown code blocks if present)
-        const jsonMatch = summaryText.match(/```json\s*([\s\S]*?)\s*```/) || summaryText.match(/\{[\s\S]*\}/);
-        const jsonString = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : summaryText;
-        console.log('🔍 Extracted JSON string:', jsonString);
-        
-        const parsedWorkout = JSON.parse(jsonString);
-        console.log('✅ Parsed workout from onboarding:', parsedWorkout);
-        
-        workoutData = {
-          success: true,
-          workout_plan: parsedWorkout
-        };
-      } catch (parseError) {
-        console.error('❌ Failed to parse onboarding response, falling back to workout API:', parseError);
-        
-        // Fallback to workout API if parsing fails
-        console.log('🚀 Fallback: Generating workout plan from AI summary...');
-        
-        const workoutResponse = await fetch('/api/workout', {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json' 
-          },
-          body: JSON.stringify({ 
-            user_id: userId,
-            context: data.summary
-          })
-        });
+      const workoutResponse = await fetch('/api/workout', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json' 
+        },
+        body: JSON.stringify({ 
+          user_id: userId,
+          context: data.summary
+        })
+      });
 
-        workoutData = await workoutResponse.json();
-        
-        if (!workoutResponse.ok) {
-          throw new Error(workoutData.error || 'Failed to generate workout plan');
-        }
+      console.log('📬 Workout API response status:', workoutResponse.status);
+      const workoutData = await workoutResponse.json();
+      console.log('📬 Workout API response data:', workoutData);
+      
+      if (!workoutResponse.ok) {
+        throw new Error(workoutData.error || 'Failed to generate workout plan');
       }
       
       console.log('✅ Final workout data to use:', workoutData);
