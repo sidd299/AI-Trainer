@@ -253,9 +253,21 @@ async function generateWeightSuggestionsForWorkout(workout: any, userContext: st
 
       if (weightResponse.status === 200 && batchData.success && batchData.exercises && Array.isArray(batchData.exercises)) {
         console.log('✅ Batch API succeeded with status 200');
-        // Convert array response to object keyed by exercise name
+        
+        // Convert array response to object keyed by ORIGINAL exercise string (not just the name)
+        // We need to match the batch API response back to the original exercise strings
         batchData.exercises.forEach((exerciseData: any) => {
-          weightSuggestions[exerciseData.exercise_name] = {
+          // Find the original exercise string that matches this exercise name
+          const matchingExercise = allExercises.find(ex => {
+            // Extract the exercise name from the full string (e.g., "Barbell squats - 3 sets of 8-10" -> "Barbell squats")
+            const exerciseNamePart = ex.split(' - ')[0].trim();
+            return exerciseNamePart === exerciseData.exercise_name || ex === exerciseData.exercise_name;
+          });
+          
+          const keyToUse = matchingExercise || exerciseData.exercise_name;
+          console.log(`🔗 Mapping "${exerciseData.exercise_name}" to key: "${keyToUse}"`);
+          
+          weightSuggestions[keyToUse] = {
             exercise_name: exerciseData.exercise_name,
             sets: exerciseData.sets,
             reasoning: exerciseData.reasoning,
@@ -263,6 +275,7 @@ async function generateWeightSuggestionsForWorkout(workout: any, userContext: st
             success: true
           };
         });
+        
         console.log(`✅ Batch weight suggestions generated for ${batchData.exercises.length}/${allExercises.length} exercises`);
         console.log('📋 Weight suggestion keys:', Object.keys(weightSuggestions));
         console.log('📋 Sample suggestion:', Object.keys(weightSuggestions).length > 0 ? weightSuggestions[Object.keys(weightSuggestions)[0]] : 'none');
