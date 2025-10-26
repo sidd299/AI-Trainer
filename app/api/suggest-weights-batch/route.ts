@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '../../../lib/supabaseClient';
 
-// AI prompt for suggesting sets, reps, and weights
-const WEIGHT_SUGGESTION_PROMPT = `
-I will give you exercises and onboarding inputs for the user. You have to suggest sets, reps and weight according to the following guidelines:
+// Batch AI prompt for suggesting weights for multiple exercises
+const BATCH_WEIGHT_SUGGESTION_PROMPT = `
+I will give you multiple exercises and onboarding inputs for the user. You have to suggest sets, reps and weight for ALL exercises according to the following guidelines:
 
 User Context:
 {user_context}
 
-Exercise:
-{exercise_details}
+Exercises:
+{exercises_list}
 
 Guidelines:
 - Suggested weights according to bodyweight multipliers provided below
@@ -19,7 +19,7 @@ Guidelines:
 - Gym dumbbells available: 2.5kg, 5kg, 7.5kg, 10kg, 12.5kg, 15kg, etc. (round to nearest 2.5kg)
 - Barbell weights should be multiples of 5kg (round accordingly)
 - DO NOT suggest sets with same weights and same reps - use your intelligence to vary them
-- For compound exercises (like squats, deadlifts, bench press, rows): suggest 2 warmup sets + 3 working sets
+- For compound exercises (squats, deadlifts, bench press, rows): suggest 2 warmup sets + 3 working sets
 - For all other exercises (isolation, machines): suggest 3 working sets directly (no warmup)
 
 Strength Standards (Multiplier × Bodyweight):
@@ -59,34 +59,41 @@ BACK:
 
 Output Format (JSON only, no additional text):
 {
-  "exercise_name": "Exercise Name",
-  "sets": [
-    {"id": "set-1", "type": "warmup", "reps": 10, "weight": 20, "completed": false},
-    {"id": "set-2", "type": "working", "reps": 8, "weight": 30, "completed": false},
-    {"id": "set-3", "type": "working", "reps": 7, "weight": 30, "completed": false}
-  ],
-  "reasoning": "Brief explanation",
-  "safety_notes": "Safety considerations"
+  "exercises": [
+    {
+      "exercise_name": "Exercise 1",
+      "sets": [
+        {"id": "set-1", "type": "warmup", "reps": 10, "weight": 20, "completed": false},
+        {"id": "set-2", "type": "working", "reps": 8, "weight": 30, "completed": false},
+        {"id": "set-3", "type": "working", "reps": 7, "weight": 30, "completed": false}
+      ],
+      "reasoning": "Brief explanation",
+      "safety_notes": "Safety considerations"
+    }
+  ]
 }
 `;
 
 export async function POST(request: NextRequest) {
   try {
-    const { user_context, exercise_details, user_id } = await request.json();
+    const { user_context, exercises, user_id } = await request.json();
     
-    if (!user_context || !exercise_details || !user_id) {
+    if (!user_context || !exercises || !Array.isArray(exercises) || exercises.length === 0 || !user_id) {
       return NextResponse.json(
-        { error: 'user_context, exercise_details, and user_id are required' },
+        { error: 'user_context, exercises (array), and user_id are required' },
         { status: 400 }
       );
     }
 
-    // Prepare the prompt with user context and exercise details
-    const prompt = WEIGHT_SUGGESTION_PROMPT
-      .replace('{user_context}', user_context)
-      .replace('{exercise_details}', exercise_details);
+    // Format exercises as a numbered list
+    const exercisesList = exercises.map((ex, idx) => `${idx + 1}. ${ex}`).join('\n');
 
-    console.log('🤖 Generating AI weight suggestions for:', exercise_details);
+    // Prepare the prompt with user context and exercises list
+    const prompt = BATCH_WEIGHT_SUGGESTION_PROMPT
+      .replace('{user_context}', user_context)
+      .replace('{exercises_list}', exercisesList);
+
+    console.log(`🤖 Generating AI weight suggestions for ${exercises.length} exercises in batch`);
 
     // Call Gemini API
     const geminiResponse = await fetch(
@@ -106,7 +113,7 @@ export async function POST(request: NextRequest) {
             temperature: 0.3,
             topK: 40,
             topP: 0.95,
-            maxOutputTokens: 1024,
+            maxOutputTokens: 4096, // Increased for batch processing
           }
         })
       }
@@ -124,63 +131,66 @@ export async function POST(request: NextRequest) {
     }
 
     // Parse the JSON response
-    let weightSuggestion;
+    let batchSuggestions;
     try {
       // Clean the response text (remove any markdown formatting)
       const cleanResponse = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-      weightSuggestion = JSON.parse(cleanResponse);
+      batchSuggestions = JSON.parse(cleanResponse);
     } catch (parseError) {
       console.error('Failed to parse Gemini response:', responseText);
       throw new Error('Invalid JSON response from AI');
     }
 
-    // Store the suggestion in database
-    try {
-      const { data: storedSuggestion, error: storeError } = await supabase
-        .from('weight_suggestions')
-        .insert({
-          user_id: user_id,
-          exercise_name: weightSuggestion.exercise_name,
-          exercise_details: exercise_details,
-          user_context: user_context,
-          suggested_weight: weightSuggestion.sets[1]?.weight || 0, // Use first working set weight
-          sets: weightSuggestion.sets,
-          is_restricted: false,
-          restriction_reason: null,
-          user_profile: {
-            reasoning: weightSuggestion.reasoning,
-            safety_notes: weightSuggestion.safety_notes
-          },
-          calculation_details: {
-            method: 'ai_prompt_based',
-            prompt_used: prompt.substring(0, 500) + '...' // Store first 500 chars of prompt
-          }
-        })
-        .select('*')
-        .single();
-
-      if (storeError) {
-        console.warn('Failed to store AI weight suggestion:', storeError);
-      } else {
-        console.log('✅ AI weight suggestion stored successfully:', storedSuggestion?.id);
-      }
-    } catch (error) {
-      console.warn('Failed to store AI weight suggestion:', error);
+    // Validate response structure
+    if (!batchSuggestions.exercises || !Array.isArray(batchSuggestions.exercises)) {
+      throw new Error('Invalid response format: missing exercises array');
     }
+
+    // Store each suggestion in database (async, don't wait)
+    batchSuggestions.exercises.forEach(async (suggestion: any) => {
+      try {
+        await supabase
+          .from('weight_suggestions')
+          .insert({
+            user_id: user_id,
+            exercise_name: suggestion.exercise_name,
+            exercise_details: suggestion.exercise_name,
+            user_context: user_context,
+            suggested_weight: suggestion.sets.find((s: any) => s.type === 'working')?.weight || 0,
+            sets: suggestion.sets,
+            is_restricted: false,
+            restriction_reason: null,
+            user_profile: {
+              reasoning: suggestion.reasoning,
+              safety_notes: suggestion.safety_notes
+            },
+            calculation_details: {
+              method: 'ai_batch_prompt',
+              batch_size: exercises.length
+            }
+          });
+      } catch (error) {
+        console.warn(`Failed to store weight suggestion for ${suggestion.exercise_name}:`, error);
+      }
+    });
+
+    console.log(`✅ Generated ${batchSuggestions.exercises.length} weight suggestions in batch`);
 
     return NextResponse.json({
       success: true,
-      ...weightSuggestion
+      exercises: batchSuggestions.exercises,
+      total_processed: batchSuggestions.exercises.length
     });
 
   } catch (error) {
-    console.error('Error in AI weight suggestion API:', error);
+    console.error('Error in batch AI weight suggestion API:', error);
     return NextResponse.json(
       { 
-        error: 'Failed to generate weight suggestions', 
+        error: 'Failed to generate batch weight suggestions', 
         details: error instanceof Error ? error.message : 'Unknown error' 
       },
       { status: 500 }
     );
   }
 }
+

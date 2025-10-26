@@ -328,7 +328,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate weight suggestions ONLY for new exercises
+    // Generate weight suggestions ONLY for new exercises using BATCH API
     console.log('🏋️ Identifying new exercises that need weight suggestions...');
     
     // Get the current workout from session
@@ -360,48 +360,82 @@ export async function POST(request: NextRequest) {
     
     // Generate weights ONLY for new exercises
     if (newExercises.length > 0) {
-      console.log('🏋️ Generating weight suggestions for new exercises:', newExercises);
+      console.log('🏋️ Generating weight suggestions for new exercises using BATCH API:', newExercises);
       
-      for (let i = 0; i < newExercises.length; i++) {
-        const exercise = newExercises[i];
-        try {
-          // Add delay between requests to avoid rate limiting (except for first request)
-          if (i > 0) {
-            console.log(`⏳ Waiting 2 seconds before next request to avoid rate limits...`);
-            await new Promise(resolve => setTimeout(resolve, 2000));
-          }
-          
-          console.log(`🏋️ [${i + 1}/${newExercises.length}] Generating weight for: ${exercise}`);
-          
-          const weightResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/suggest-weights-ai`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-              user_context: session.user_context || '', 
-              exercise_details: exercise, 
-              user_id: user_id 
-            })
-          });
-          
-          if (weightResponse.ok) {
-            const weightData = await weightResponse.json();
-            if (weightData.success && weightData.sets) {
-              weightSuggestions[exercise] = {
-                exercise_name: weightData.exercise_name,
-                sets: weightData.sets,
-                reasoning: weightData.reasoning,
-                safety_notes: weightData.safety_notes,
+      try {
+        // 🚀 NEW: Use batch API for all new exercises at once
+        const weightResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/suggest-weights-batch`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            user_context: session.user_context || '', 
+            exercises: newExercises, 
+            user_id: user_id 
+          })
+        });
+        
+        if (weightResponse.ok) {
+          const batchData = await weightResponse.json();
+          if (batchData.success && batchData.exercises && Array.isArray(batchData.exercises)) {
+            // Merge batch results into weightSuggestions
+            batchData.exercises.forEach((exerciseData: any) => {
+              weightSuggestions[exerciseData.exercise_name] = {
+                exercise_name: exerciseData.exercise_name,
+                sets: exerciseData.sets,
+                reasoning: exerciseData.reasoning,
+                safety_notes: exerciseData.safety_notes,
                 success: true
               };
-              console.log(`✅ Weight suggestion generated for new exercise: ${exercise}`);
-            } else {
-              console.warn(`⚠️ No weight data returned for: ${exercise}`);
-            }
+            });
+            console.log(`✅ Batch weight suggestions generated for ${batchData.exercises.length} new exercises`);
           } else {
-            console.warn(`⚠️ Weight API returned status ${weightResponse.status} for: ${exercise}`);
+            console.warn('⚠️ Batch API returned invalid format, falling back to individual calls');
+            throw new Error('Invalid batch response format');
           }
-        } catch (error) {
-          console.error(`❌ Failed to generate weight for ${exercise}:`, error);
+        } else {
+          console.warn(`⚠️ Batch weight API failed with status ${weightResponse.status}, falling back`);
+          throw new Error(`Batch API failed with status ${weightResponse.status}`);
+        }
+      } catch (batchError) {
+        console.error('❌ Batch weight generation failed, falling back to individual calls:', batchError);
+        
+        // FALLBACK: Generate weights individually with delays
+        for (let i = 0; i < newExercises.length; i++) {
+          const exercise = newExercises[i];
+          try {
+            if (i > 0) {
+              console.log(`⏳ Waiting 2 seconds before next request to avoid rate limits...`);
+              await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+            
+            console.log(`🏋️ [Fallback ${i + 1}/${newExercises.length}] Generating weight for: ${exercise}`);
+            
+            const weightResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/suggest-weights-ai`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                user_context: session.user_context || '', 
+                exercise_details: exercise, 
+                user_id: user_id 
+              })
+            });
+            
+            if (weightResponse.ok) {
+              const weightData = await weightResponse.json();
+              if (weightData.success && weightData.sets) {
+                weightSuggestions[exercise] = {
+                  exercise_name: weightData.exercise_name,
+                  sets: weightData.sets,
+                  reasoning: weightData.reasoning,
+                  safety_notes: weightData.safety_notes,
+                  success: true
+                };
+                console.log(`✅ Weight suggestion generated for new exercise: ${exercise}`);
+              }
+            }
+          } catch (error) {
+            console.error(`❌ Failed to generate weight for ${exercise}:`, error);
+          }
         }
       }
       
