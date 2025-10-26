@@ -77,11 +77,23 @@ export default function ExerciseCard({
     if (weightsLoaded || isLoadingWeights) return;
     
     setIsLoadingWeights(true);
+    console.log('🔍 [ExerciseCard] Loading weight suggestions for:', exercise.name);
+    console.log('🔍 [ExerciseCard] preCalculatedWeights available:', !!preCalculatedWeights);
+    console.log('🔍 [ExerciseCard] Current exercise sets:', exercise.sets);
     
     try {
+      // Check if sets already exist (pre-loaded from API)
+      if (exercise.sets && exercise.sets.length > 0 && exercise.sets[0].weight > 0) {
+        console.log('✅ [ExerciseCard] Sets already loaded for:', exercise.name);
+        setWeightsLoaded(true);
+        setIsLoadingWeights(false);
+        return;
+      }
+
       // Use weight suggestions from workout API response
       if (preCalculatedWeights && preCalculatedWeights[exercise.name]) {
         const weightData = preCalculatedWeights[exercise.name];
+        console.log('📦 [ExerciseCard] Weight data found:', weightData);
         if (weightData.success && weightData.sets && weightData.sets.length > 0) {
           onUpdateExercise(exercise.id, { sets: weightData.sets });
           setWeightsLoaded(true);
@@ -91,8 +103,9 @@ export default function ExerciseCard({
         }
       }
 
-      // If no weight suggestions available, keep default sets
+      // If no weight suggestions available, show placeholder message
       console.log('⚠️ No weight suggestions available for:', exercise.name);
+      console.log('⚠️ Available keys in preCalculatedWeights:', preCalculatedWeights ? Object.keys(preCalculatedWeights) : 'none');
       setWeightsLoaded(true);
       setIsLoadingWeights(false);
     } catch (error) {
@@ -233,11 +246,11 @@ export default function ExerciseCard({
             transition={{ duration: 0.3 }}
             className="mt-3"
           >
-            {isLoadingWeights ? (
+            {isLoadingWeights || (!weightsLoaded && exercise.sets.length === 0) ? (
               <div className="flex items-center justify-center py-8">
                 <div className="flex items-center gap-3 text-ai-600">
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  <span className="text-sm">Loading weight suggestions...</span>
+                  <span className="text-sm">Loading sets...</span>
                 </div>
               </div>
             ) : (
