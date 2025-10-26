@@ -5,9 +5,9 @@ import AICoachTips from '../../components/AICoachTips';
 
 export default function TestReasoningPage() {
   const [testContext, setTestContext] = useState('');
-  const [workoutPlan, setWorkoutPlan] = useState(null);
+  const [workoutPlan, setWorkoutPlan] = useState<any>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
 
   const testWorkoutGeneration = async () => {
     if (!testContext.trim()) {

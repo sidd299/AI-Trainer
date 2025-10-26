@@ -377,3 +377,10 @@ export interface WorkoutAction {
   summary?: string;
   changes?: string[];
 }
+
+export interface WorkoutModification {
+  type: 'add' | 'remove' | 'replace' | 'adjust';
+  targetExerciseId?: string;
+  exerciseData?: any;
+  reason?: string;
+}
