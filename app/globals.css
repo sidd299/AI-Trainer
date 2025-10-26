@@ -1,0 +1,72 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: system-ui, sans-serif;
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+  
+  body {
+    @apply bg-gradient-to-br from-ai-50 to-ai-100 min-h-screen;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overscroll-behavior: none;
+  }
+
+  /* Mobile optimizations */
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  input, textarea, select {
+    font-size: 16px; /* Prevents zoom on iOS */
+  }
+
+  /* Smooth scrolling */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Custom scrollbar for webkit browsers */
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.3);
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, 0.5);
+  }
+}
+
+@layer components {
+  .glass-effect {
+    @apply bg-white/80 backdrop-blur-sm border border-white/20;
+  }
+  
+  .ai-glow {
+    @apply shadow-lg shadow-primary-500/10;
+  }
+  
+  .interactive-card {
+    @apply transition-all duration-300 hover:shadow-xl hover:scale-[1.02] active:scale-[0.98];
+  }
+  
+  .ai-button {
+    @apply bg-gradient-to-r from-primary-500 to-primary-600 text-white px-4 py-2 rounded-xl font-medium transition-all duration-200 hover:from-primary-600 hover:to-primary-700 hover:shadow-lg active:scale-95;
+  }
+  
+  .ai-button-secondary {
+    @apply bg-white/80 text-ai-700 px-4 py-2 rounded-xl font-medium border border-ai-200 transition-all duration-200 hover:bg-white hover:shadow-md active:scale-95;
+  }
+}
