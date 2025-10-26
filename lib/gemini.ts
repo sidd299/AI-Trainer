@@ -379,7 +379,7 @@ export interface WorkoutAction {
 }
 
 export interface WorkoutModification {
-  type: 'add' | 'remove' | 'replace' | 'adjust';
+  type: 'add_exercise' | 'modify_exercise' | 'remove_exercise';
   targetExerciseId?: string;
   exerciseData?: any;
   reason?: string;
