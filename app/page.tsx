@@ -6,7 +6,6 @@ import { WorkoutAction, geminiAI } from '@/lib/gemini';
 import { WorkoutActionHandler } from '@/lib/workoutActions';
 import TodayWorkout from '@/components/TodayWorkout';
 import TodaysWorkout from '@/components/TodaysWorkout';
-import AIFloatingSuggestions from '@/components/AIFloatingSuggestions';
 import OnboardingForm from '@/components/OnboardingForm';
 import ProcessingOverlay from '@/components/ProcessingOverlay';
 import ChangeNotification from '@/components/ChangeNotification';
@@ -655,43 +654,21 @@ export default function Home() {
         exerciseDetails={exerciseDetails}
         preCalculatedWeights={preCalculatedWeights}
       />
-      <AIFloatingSuggestions />
       
-      {/* Test Button for Gemini API */}
-      <button
-        onClick={testGeminiAPI}
-        className="fixed top-4 right-4 bg-blue-500 text-white px-4 py-2 rounded-lg z-40"
-      >
-        Test Gemini API
-      </button>
-      
-      {/* Debug Info Button */}
-      <button
-        onClick={() => {
-          const userId = getCurrentUserId();
-          const summary = localStorage.getItem('onboardingSummary');
-          console.log('🔍 Debug Info:');
-          console.log('User ID:', userId);
-          console.log('Onboarding Summary:', summary);
-          alert(`User ID: ${userId}\nSummary: ${summary?.substring(0, 100)}...`);
-        }}
-        className="fixed top-4 right-48 bg-green-500 text-white px-4 py-2 rounded-lg z-40"
-      >
-        Debug Info
-      </button>
-      
-      {/* Reset Onboarding Button */}
+      {/* Reset Onboarding Button - Top Left */}
       <button
         onClick={() => {
           localStorage.removeItem('onboardingComplete');
           localStorage.removeItem('userId');
           localStorage.removeItem('onboardingSummary');
+          localStorage.removeItem('currentWorkout');
           setIsOnboardingComplete(false);
-          console.log('🔄 Onboarding reset via button');
+          console.log('🔄 Onboarding reset');
         }}
-        className="fixed top-4 right-80 bg-red-500 text-white px-4 py-2 rounded-lg z-40"
+        className="fixed top-4 left-4 bg-gray-700 hover:bg-gray-800 text-white px-3 py-2 rounded-lg z-40 text-sm shadow-lg"
+        title="Reset onboarding and start fresh"
       >
-        Reset Onboarding
+        Reset
       </button>
 
       {/* Processing Overlay */}
