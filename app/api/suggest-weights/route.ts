@@ -179,7 +179,7 @@ function calculateSuggestedWeight(
   
   // Get strength standards
   const standards = STRENGTH_STANDARDS[userGender.toLowerCase() as keyof typeof STRENGTH_STANDARDS];
-  if (!standards || !standards[exerciseKey]) {
+  if (!standards || !standards[exerciseKey as keyof typeof standards]) {
     // Fallback for unknown exercises
     return {
       weight: userWeight * 0.1, // Very conservative fallback
@@ -187,7 +187,7 @@ function calculateSuggestedWeight(
     };
   }
   
-  const standard = standards[exerciseKey];
+  const standard = standards[exerciseKey as keyof typeof standards];
   const experienceMultiplier = EXPERIENCE_MULTIPLIERS[experienceLevel as keyof typeof EXPERIENCE_MULTIPLIERS] || 0.5;
   
   // Calculate weight based on user's bodyweight and experience
